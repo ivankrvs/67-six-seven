@@ -11,6 +11,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 
+
 let userMarker = null;
 let parkingZoneGeoJSON = null;
 
@@ -33,34 +34,102 @@ let watchId = null;
 let exitTimeout = null;
 
 // загружаем зоны из geojsopn
-fetch('data/parking-zone.geojson')
-    .then(res => res.json())
-    .then(data => {
-        zones = data.features;
+function loadParkingZones() {
 
-        // отрисовка всех зон
-        zones.forEach((zone, index) => {
+    if (!map) {
+        console.error("Map not initialized");
+        return;
+    }
 
-    const layer = L.geoJSON(zone, {
-        style: {
-            color: getColor(index),
-            fillColor: getColor(index),
-            fillOpacity: 0.25,
-            weight: 2
+    console.log(" Loading GeoJSON zones");
+
+    fetch('data/parking-zone.geojson', {
+        cache: "no-store"
+    })
+    .then(res => {
+
+        console.log(" Response:", res.status);
+
+        if (!res.ok) {
+            throw new Error(`HTTP error ${res.status}`);
         }
-    }).addTo(map);
 
-    zoneLayers.push({
-        id: zone.id,
-        name: zone.properties.name,
-        layer: layer,
-        data: zone
+        return res.json();
+    })
+    
+    
+    .then(data => {
+
+    console.log(" GeoJSON loaded");
+
+    if (!data || data.type !== "FeatureCollection") {
+        throw new Error("Invalid GeoJSON format");
+    }
+
+    zones = data.features || [];
+    zoneLayers = [];
+
+    zones.forEach((feature, index) => {
+
+        try {
+            if (!feature?.geometry?.coordinates) {
+                console.warn("Skipping invalid feature:", feature);
+                return;
+            }
+
+            const layer = L.geoJSON(feature, {
+                style: {
+                    color: "#3b82f6",
+                    fillColor: "#3b82f6",
+                    fillOpacity: 0.3,
+                    weight: 2
+                }
+            }).addTo(map);
+
+            const zoneName =
+                feature.properties?.name || `Zone ${index + 1}`;
+
+            const price =
+                feature.properties?.price_per_hour ?? 5;
+
+            zoneLayers.push({
+                id: feature.id ?? index,
+                name: zoneName,
+                price: price,
+                layer: layer,
+                data: feature
+            });
+
+        } catch (featureError) {
+            console.error("Ошибка в зоне:", featureError);
+        }
     });
+
+    
+
+    console.log(`Zones rendered: ${zoneLayers.length}`);
+
+    // отдельно защищаем
+    try {
+        fitMapToZones();
+    } catch (e) {
+        console.warn("fitMapToZones error:", e);
+    }
+
+    
+})
+
+.catch(err => {
+    console.error(" GeoJSON load error:", err);
+
+    // показываем только если реально ничего не загрузилось
+    if (!zones || zones.length === 0) {
+        showNotification("Ошибка загрузки зон парковки", "error");
+    }
 });
+}
 
-        console.log("Зоны загружены:", zones.length);
-    });
-
+loadParkingZones();
 
 
 //логика зоны парковки
@@ -84,48 +153,38 @@ function handleZoneLogic(lat, lng) {
     if (foundZone) {
 
         statusEl.textContent =
-            `В зоне: ${foundZone.properties.name || "Zone"}`;
+            `В зоне: ${foundZone.properties.name}`;
+
         statusEl.style.color = "green";
 
-        //  ПОДСВЕТКА АКТИВНОЙ ЗОНЫ
         highlightZone(foundZone);
 
-        //  автостарт
         if (!activeZone && !isParkingActive) {
             activeZone = foundZone;
-
             startParkingWithZone(foundZone);
 
-            showToast("🚀 Парковка началась");
-        }
-
-        if (exitTimeout) {
-            clearTimeout(exitTimeout);
-            exitTimeout = null;
+            showNotification("Парковка началась");
         }
 
     } else {
 
-        statusEl.textContent = "ВНЕ всех зон";
+        statusEl.textContent = "Вне зон";
         statusEl.style.color = "red";
 
-        //  сброс подсветки
         zoneLayers.forEach(z => {
             z.layer.setStyle({
-                fillOpacity: 0.25,
-                color: "#666",
-                weight: 2
+                fillOpacity: 0.2,
+                color: "#999",
+                weight: 1
             });
         });
 
-        if (isParkingActive && !exitTimeout) {
-            exitTimeout = setTimeout(() => {
-                stopParking();
-                activeZone = null;
+        //  автозавершение при выходе
+        if (isParkingActive && activeZone) {
+            showNotification("Вы вышли из зоны — завершение");
 
-                showToast("⛔ Парковка завершена автоматически");
-
-            }, 10000);
+            activeZone = null;
+            stopParking();
         }
     }
 
@@ -135,7 +194,7 @@ function handleZoneLogic(lat, lng) {
 // постоянная геолокация
 function getUserLocation() {
     if (!navigator.geolocation) {
-        alert("Геолокация не поддерживается");
+        showNotification("Геолокация не поддерживается");
         return;
     }
 
@@ -184,19 +243,24 @@ function startParking(zone) {
     isParkingActive = true;
     activeZone = zone;
 
+
     // фикс тарифа и зоны
     lastZonePrice = zone.properties.price_per_hour || 5;
     lastZoneName = zone.properties.name || "Zone";
 
     parkingStartTime = Date.now();
 
-    timerInterval = setInterval(updateUI, 1000);
-
+   timerInterval = setInterval(() => {
+    updateTimer();
+    updateLiveCost();
+    checkZoneExit();   
+}, 1000);
     document.getElementById("sessionCard").classList.add("active");
 }
 
 // таймер
 function updateTimer() {
+
     const seconds = Math.floor((Date.now() - parkingStartTime) / 1000);
 
     const minutes = Math.floor(seconds / 60);
@@ -205,58 +269,61 @@ function updateTimer() {
     document.getElementById("timer").textContent =
         `${minutes} мин ${sec} сек`;
 
-    // обновление ui состояния сессии
     document.getElementById("sessionTime").textContent =
         `⏱ ${seconds} сек`;
 
-    const pricePerHour =
-        parkingZoneGeoJSON.features[0].properties.price_per_hour;
-
-    const cost = (seconds / 3600) * pricePerHour;
+    const cost = (seconds / 3600) * lastZonePrice;
 
     document.getElementById("sessionCost").textContent =
-        `💰 ${cost.toFixed(2)} €`;
+        `💰 ${cost.toFixed(2)} BYN`;
 }
 
 // завершении пакровки
-function stopParking() {
-
-    //  НЕЛЬЗЯ остановить в зоне
-    if (activeZone) {
-        showToast("❌ Нельзя завершить парковку, пока вы в зоне");
-        return;
-    }
+function stopParking(reason = "manual") {
 
     if (!isParkingActive) return;
 
+    // запрет только для ручного завершения
+    if (reason === "manual" && activeZone) {
+        showNotification(" Выйдите из зоны для завершения", "warning");
+        return;
+    }
+
     clearInterval(timerInterval);
+    stopZoneAnimation();
 
     const totalSeconds =
         Math.floor((Date.now() - parkingStartTime) / 1000);
 
-    // надо взять последний тариф
+    const cost =
+        (totalSeconds / 3600) * lastZonePrice;
 
-    const cost = (totalSeconds / 3600) * lastZonePrice;
     const roundedCost = cost.toFixed(2);
 
+    //  сохраняем
     saveParkingToHistory(totalSeconds, roundedCost);
 
-    // UI результат
-    const resultEl = document.getElementById("result");
-
-    resultEl.innerHTML = `
-    ⏱ <b>Время:</b> ${totalSeconds} сек <br>
-    💰 <b>Стоимость:</b> ${roundedCost} € <br>
-    ✅ <b>Статус:</b> Оплачено (демо)
+    // вывод результата
+    document.getElementById("result").innerHTML = `
+        ⏱ <b>Время:</b> ${totalSeconds} сек <br>
+        💰 <b>Стоимость:</b> ${roundedCost} BYN <br>
+        ✅ <b>Статус:</b> Завершено
     `;
 
-    showToast("Парковка завершена");
+    //  уведомление
+    if (reason === "auto") {
+        showNotification(" Парковка завершена автоматически", "warning");
+    } else {
+        showNotification(" Парковка завершена", "success");
+    }
 
     // сброс состояния
     isParkingActive = false;
     parkingStartTime = null;
+    activeZone = null;
 
-    document.getElementById("timer").textContent = "Время: 0 сек";
+    // UI reset
+    document.getElementById("timer").textContent = "0";
 
     document.getElementById("sessionCard").classList.remove("active");
 
@@ -267,13 +334,28 @@ function stopParking() {
         "⏱ 0 сек";
 
     document.getElementById("sessionCost").textContent =
-        "💰 0 €";
+        "💰 0 BYN";
 
     updateZonePanel(null);
 
     updateButtons();
 
+    // чек
     showReceipt(totalSeconds, roundedCost);
+}
+
+function checkZoneExit() {
+    if (!isParkingActive || !activeZone) return;
+
+    const inside = turf.booleanPointInPolygon(
+        userMarker.getLatLng().toGeoJSON(),
+        activeZone
+    );
+
+    if (!inside) {
+        showNotification("Вы покинули зону парковки. Сессия завершена.", "warning");
+        stopParking();
+    }
 }
 
 // события
@@ -303,43 +385,6 @@ function saveParkingToHistory(seconds, cost) {
     renderHistory();
 }
 
-// отрисовка истории праковок
-function renderHistory() {
-    const history = JSON.parse(localStorage.getItem("parkingHistory")) || [];
-    const list = document.getElementById("historyList");
-
-    list.innerHTML = "";
-
-    history.forEach(item => {
-        const li = document.createElement("li");
-
-        li.innerHTML = `
-            🕒 ${item.date}<br>
-            ⏱ ${item.time} сек<br>
-            💰 ${item.cost} €
-        `;
-
-        list.appendChild(li);
-    });
-}
-
-renderHistory();
-
-function showToast(message) {
-    const toast = document.getElementById("toast");
-
-    toast.textContent = message;
-    toast.classList.add("show");
-
-    setTimeout(() => {
-        toast.classList.remove("show");
-    }, 3000);
-}
-
-function getColor(index) {
-    const colors = ["blue", "green", "red", "orange", "purple"];
-    return colors[index % colors.length];
-}
 
 function startParkingWithZone(zone) {
 
@@ -377,25 +422,7 @@ document.getElementById("closeReceiptBtn").addEventListener("click", () => {
     document.getElementById("receiptModal").classList.add("hidden");
 });
 
-function highlightZone(activeZone) {
 
-    zoneLayers.forEach(z => {
-
-        if (z.data === activeZone) {
-            z.layer.setStyle({
-                fillOpacity: 0.6,
-                color: "lime",
-                weight: 3
-            });
-        } else {
-            z.layer.setStyle({
-                fillOpacity: 0.1,
-                color: "#999",
-                weight: 1
-            });
-        }
-    });
-}
 
 function updateUI() {
 
@@ -404,17 +431,17 @@ function updateUI() {
     const seconds =
         Math.floor((Date.now() - parkingStartTime) / 1000);
 
-    const cost = (seconds / 3600) * lastZonePrice;
+    const cost =
+        (seconds / 3600) * lastZonePrice;
 
     document.getElementById("sessionTime").textContent =
         "⏱ " + seconds + " сек";
 
     document.getElementById("sessionCost").textContent =
-        "💰 " + cost.toFixed(2) + " €";
+        "💰 " + cost.toFixed(2) + " BYN";
 
-    // используем lastZoneName если activeZone уже null
     updateZonePanel(
-        activeZone || { properties: { name: lastZoneName, price_per_hour: lastZonePrice } },
+        activeZone,
         seconds,
         cost
     );
@@ -489,11 +516,11 @@ function highlightZone(active) {
 
             z.layer.setStyle({
                 color: "#22c55e",
-                fillOpacity: 0.4,
-                weight: 2
+                fillOpacity: 0.45,
+                weight: 3
             });
 
-            animateActiveZone(z.layer); // 👈 ВОТ ЭТО
+            animateActiveZone(z.layer);
 
         } else {
 
@@ -504,4 +531,33 @@ function highlightZone(active) {
             });
         }
     });
+}
+
+function showNotification(message, type = "info") {
+    const container = document.getElementById("notifications");
+
+    const el = document.createElement("div");
+    el.className = `toast ${type}`;
+    el.innerText = message;
+
+    container.appendChild(el);
+
+    setTimeout(() => {
+        el.remove();
+    }, 3000);
+}
+
+function updateLiveCost() {
+    if (!isParkingActive || !parkingStartTime || !activeZone) return;
+
+    const seconds = Math.floor((Date.now() - parkingStartTime) / 1000);
+    const pricePerHour = activeZone.properties.price_per_hour;
+
+    const cost = (seconds / 3600) * pricePerHour;
+
+    document.getElementById("sessionTime").textContent =
+        `⏱ ${seconds} сек`;
+
+    document.getElementById("sessionCost").textContent =
+        `💰 ${cost.toFixed(2)} BYN`;
 }
