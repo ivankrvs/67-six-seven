@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Parking Geo Demo</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+
+<div class="container">
+
+    <h1>Parking area</h1>
+
+    <div class="card">
+        <div id="map"></div>
+    </div>
+
+    <div class="card">
+        <p id="status" class="status">Статус: неизвестно</p>
+
+        <button id="locateBtn">📍 Определить местоположение</button>
+
+        <div class="buttons">
+            <button id="startBtn">▶ Начать</button>
+            <button id="stopBtn" disabled>■ Завершить</button>
+        </div>
+
+        <p id="timer" class="timer">0 сек</p>
+    </div>
+
+    <div class="card session-card" id="sessionCard">
+    <h3>🟢 Активная сессия</h3>
+    <p id="sessionStatus">Нет активной парковки</p>
+    <p id="sessionTime">⏱ 0 сек</p>
+    <p id="sessionCost">💰 0 Br</p>
+    </div>
+
+    <div class="card result-card">
+        <h3>Результат</h3>
+        <p id="result">Нет данных</p>
+    </div>
+
+    <div class="card">
+    <h3>История парковок</h3>
+    <ul id="historyList"></ul>
+
+
+</div>
+
+
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<script src="app.js"></script>
+
+<div id="toast" class="toast"></div>
+
+
+</body>
+</html>

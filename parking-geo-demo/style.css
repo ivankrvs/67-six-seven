@@ -1,0 +1,182 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+body {
+    margin: 0;
+    font-family: "Inter", sans-serif;
+
+    background: radial-gradient(circle at top, #e0f2fe, #f5f7fb);
+    color: #111827;
+}
+
+.container {
+    max-width: 720px;
+    margin: auto;
+    padding: 20px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+
+h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    letter-spacing: 0.3px;
+}
+
+#map {
+    width: 100%;
+    height: 70vh;   
+    min-height: 500px;
+
+    border-radius: 14px;
+    margin-bottom: 12px;
+
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+
+.status {
+    width: 100%;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 10px;
+}
+
+
+.card {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 14px;
+
+    padding: 14px 16px;
+    margin-bottom: 12px;
+
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+
+.session-card.active,
+#activeZonePanel.active {
+    border: 1px solid #22c55e;
+    background: #f0fdf4;
+}
+
+
+.card h3 {
+    margin: 0 0 8px 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.card p {
+    margin: 4px 0;
+    font-size: 14px;
+    color: #374151;
+}
+
+
+.controls {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+button {
+    flex: 1;
+    padding: 11px 12px;
+    border: none;
+    border-radius: 10px;
+
+    font-size: 14px;
+    font-weight: 500;
+
+    color: white;
+    cursor: pointer;
+
+    backdrop-filter: blur(10px);
+
+    transition: all 0.2s ease;
+}
+
+button:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+}
+
+#locateBtn {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+}
+
+#startBtn {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+#stopBtn {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.result-card {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.05);
+
+    font-size: 14px;
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    backdrop-filter: blur(4px);
+}
+
+.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 14px;
+    width: 280px;
+
+    text-align: center;
+
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+}
+
+.modal-content h2 {
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+.paid {
+    color: #16a34a;
+    font-weight: 600;
+    margin-top: 8px;
+}
